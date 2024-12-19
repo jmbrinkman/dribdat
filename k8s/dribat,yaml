@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dribdat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dribdat
+  template:
+    metadata:
+      labels:
+        app: dribdat
+    spec:
+      containers:
+      - name: dribdat
+        image: dribdat/dribdat
+        ports:
+        - containerPort: 5000
+        env:
+        - name: SERVER_URL
+          value: "dribdat-service:5000" # Replace with your service name
+        - name: DATABASE_URL
+          value: "postgres://dribdat_user:changeme@db-service:5432/dribdat
+" # Replace with your service name
+        - name: DRIBDAT_ENV
+          value: "prod"
+        - name: DRIBDAT_SECRET
+          value: "changeme" # Consider using Kubernetes Secrets
+        - name: DRIBDAT_APIKEY
+          value: "changeme" # Consider using Kubernetes Secrets
+        - name: TIME_ZONE
+          value: "Europe/Zurich"
+      depends_on:
+      - db
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dribdat-service
+spec:
+  selector:
+    app: dribdat
+  ports:
+  - protocol: TCP
+    port: 5000
+    targetPort: 5000
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+      - name: db
+        image: postgres
+        ports:
+        - containerPort: 
+5432
+        volumeMounts:
+        - name: db-data
+          mountPath: /var/lib/postgresql/data
+        env:
+        - name: POSTGRES_DB
+          value: "dribdat"
+        - name: POSTGRES_USER
+          value: "dribdat_user"
+        - name: POSTGRES_PASSWORD
+          value: "changeme" # Consider using Kubernetes Secrets
+      volumes:
+      - name: db-data
+        persistentVolumeClaim:
+          claimName: db-pvc # Create a PersistentVolumeClaim for the database
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db-service
+spec:
+  selector:
+    app: db
+  ports:
+  - protocol: TCP
+    port: 5432
+    targetPort: 5432
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: db-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
